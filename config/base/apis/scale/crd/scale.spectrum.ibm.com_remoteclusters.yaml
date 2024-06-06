@@ -88,18 +88,10 @@ spec:
                       is susceptible to machine-in-the-middle attacks.
                     type: boolean
                   passwordRotation:
-                    description: passwordRotation allows to configure automatic password
-                      rotation of the container operator and CSI admin GUI users.
-                      Automatic password rotation is disabled if this section is not
-                      specified.
+                    description: Automatic password rotation is disabled.
                     properties:
                       passwordChangeInterval:
-                        default: "80"
-                        description: 'passwordChangeInterval allows the configuration
-                          in days for the operator to change the user passwords on
-                          the storage cluster. Specify the value surrounded by double
-                          quotes (like passwordChangeFrequency: "30"). The default
-                          value is 80 days.'
+                        description: This is not supported.
                         type: string
                     type: object
                   port:

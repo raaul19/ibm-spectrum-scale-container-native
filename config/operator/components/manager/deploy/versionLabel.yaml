@@ -3,7 +3,7 @@ kind: LabelTransformer
 metadata:
   name: versionLabeler
 labels:
-  app.kubernetes.io/version: v5.2.0.0
+  app.kubernetes.io/version: v5.2.0.1 # <----- DO NOT USE THE MINUS/DASH CHARACTER (-) AS PART OF THE VERSION NUMBER. i.e v5.1.9.1-1 is NOT VALID, USE v5.1.9.1.1 INSTEAD.
 fieldSpecs:
   - kind: Deployment
     path: metadata/labels
