@@ -11,12 +11,15 @@ spec:
     blockSize: 4M
     pools:
     - disks:
-      - disk0
-      - disk1
-      - disk2
+      - worker0-vdb
+      - worker0-vdc
+      - worker1-vdb
+      - worker1-vdc
+      - worker2-vdb
+      - worker2-vdc
       name: system
-    replication: 1-way
-    type: shared
+    replication: 3-way
+    type: unshared
   seLinuxOptions:
     level: s0
     role: object_r

@@ -92,12 +92,15 @@ spec:
                           - type: integer
                           - type: string
                           description: 'capacity is the user provided value for filesystem
-                            pool size (Ex: 1Ti)'
+                            pool size (Ex: 1Ti) This parameter is unsupported, do
+                            not use.'
                           pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                           x-kubernetes-int-or-string: true
                         disks:
                           description: disks is a list of local disk names to be included
-                            from this pool
+                            from this pool. All local disks that are specified here
+                            must have the same "type" ("shared" or "unshared") as
+                            this filesystem has defined in the spec.
                           items:
                             type: string
                           type: array
@@ -108,22 +111,38 @@ spec:
                           type: string
                         storageClass:
                           description: storageClass is the storage class that will
-                            be verified and used for disk device creation
+                            be verified and used for disk device creation This parameter
+                            is unsupported, do not use.
                           type: string
+                      required:
+                      - disks
                       type: object
                     maxItems: 8
                     minItems: 1
                     type: array
                   replication:
-                    default: 3-way
                     description: replication is the number of replicas to create for
-                      each data/metadata block that is written to the filesystem (only
-                      3-way is supported)
+                      each data/metadata block that is written to the filesystem.
+                      For type unshared only 3-way is allowed.
                     enum:
+                    - 1-way
+                    - 2-way
                     - 3-way
+                    type: string
+                  type:
+                    description: type defines the type of the local filesystem to
+                      create. Type "shared" is used for disks that have a path to
+                      all core pods with the "storage" role. Type "unshared" is used
+                      for disks that have a path to only one core pod. All local disks
+                      to be used for this filesystem must have the same type.
+                    enum:
+                    - shared
+                    - unshared
                     type: string
                 required:
                 - pools
+                - replication
+                - type
                 type: object
               remote:
                 description: If specified, describes the file system to be remote
@@ -391,20 +410,49 @@ spec:
                 description: pools displays status of the filesystem pools
                 items:
                   properties:
+                    diskCount:
+                      description: diskCount is the number of localdisk objects in
+                        this pool. Used only if the file system is not replicated
+                        (means if spec.local.replication is "1-way").
+                      type: integer
+                    disks:
+                      description: disks lists the names of the localdisk objects
+                        in this pool. Used only if the file system is not replicated
+                        (means if spec.local.replication is "1-way").
+                      type: string
                     failureGroups:
+                      description: failureGroups shows the status of disks in a failure
+                        group. Used only if the file system is replicated (means if
+                        spec.local.replication is not "1-way").
                       items:
                         properties:
                           diskCount:
+                            description: diskCount is the number of localdisk objects
+                              in this failure group of the pool. Used only if the
+                              file system is replicated (means if spec.local.replication
+                              is not "1-way").
                             type: integer
                           disks:
+                            description: disks lists the names of the localdisk objects
+                              in this failure group of the pool. Used only if the
+                              file system is replicated (means if spec.local.replication
+                              is not "1-way").
                             type: string
                           failureGroup:
                             description: failureGroup is the number of this failure
                               group
                             type: string
                           failureGroupMapping:
+                            description: failureGroupMapping shows the name of the
+                              entity that bundles the disks together in a failure
+                              group. This can be for example an kubernetes zone or
+                              region or a kubernetes node.
                             type: string
                           totalDiskSize:
+                            description: totalDiskSize is the sum of all disk sizes
+                              in this failure group of the pool. Used only if the
+                              file system is replicated (means if spec.local.replication
+                              is not "1-way").
                             type: string
                         type: object
                       type: array
@@ -412,6 +460,11 @@ spec:
                       default: system
                       description: 'name is the desired name of this pool (default:
                         system)'
+                      type: string
+                    totalDiskSize:
+                      description: totalDiskSize is the sum of all disk sizes in this
+                        pool. Used only if the file system is not replicated (means
+                        if spec.local.replication is "1-way").
                       type: string
                   type: object
                 type: array

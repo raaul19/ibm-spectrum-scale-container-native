@@ -4,7 +4,7 @@ metadata:
   labels:
     app.kubernetes.io/instance: ibm-spectrum-scale
     app.kubernetes.io/name: cluster
-  name: worker0-vdb
+  name: disk0
   namespace: ibm-spectrum-scale
 spec:
   device: /dev/vdb
@@ -16,7 +16,7 @@ metadata:
   labels:
     app.kubernetes.io/instance: ibm-spectrum-scale
     app.kubernetes.io/name: cluster
-  name: worker0-vdc
+  name: disk1
   namespace: ibm-spectrum-scale
 spec:
   device: /dev/vdc
@@ -28,44 +28,8 @@ metadata:
   labels:
     app.kubernetes.io/instance: ibm-spectrum-scale
     app.kubernetes.io/name: cluster
-  name: worker1-vdb
+  name: disk2
   namespace: ibm-spectrum-scale
 spec:
-  device: /dev/vdb
-  node: worker1.example.com
----
-apiVersion: scale.spectrum.ibm.com/v1beta1
-kind: LocalDisk
-metadata:
-  labels:
-    app.kubernetes.io/instance: ibm-spectrum-scale
-    app.kubernetes.io/name: cluster
-  name: worker1-vdc
-  namespace: ibm-spectrum-scale
-spec:
-  device: /dev/vdc
-  node: worker1.example.com
----
-apiVersion: scale.spectrum.ibm.com/v1beta1
-kind: LocalDisk
-metadata:
-  labels:
-    app.kubernetes.io/instance: ibm-spectrum-scale
-    app.kubernetes.io/name: cluster
-  name: worker2-vdb
-  namespace: ibm-spectrum-scale
-spec:
-  device: /dev/vdb
-  node: worker2.example.com
----
-apiVersion: scale.spectrum.ibm.com/v1beta1
-kind: LocalDisk
-metadata:
-  labels:
-    app.kubernetes.io/instance: ibm-spectrum-scale
-    app.kubernetes.io/name: cluster
-  name: worker2-vdc
-  namespace: ibm-spectrum-scale
-spec:
-  device: /dev/vdc
-  node: worker2.example.com
+  device: /dev/vdd
+  node: worker0.example.com

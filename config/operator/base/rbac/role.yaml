@@ -275,6 +275,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - machineconfiguration.openshift.io
+  resources:
+  - machineconfigpools
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - networking.k8s.io
   resources:
   - networkpolicies

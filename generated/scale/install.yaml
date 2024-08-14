@@ -831,6 +831,10 @@ spec:
                 - IBMCloud
                 - KubeVirt
                 - EquinixMetal
+                - PowerVS
+                - AlibabaCloud
+                - Nutanix
+                - External
                 type: string
               pool:
                 description: pool is the user provided value for creating spectrum
@@ -841,12 +845,14 @@ spec:
                     - type: integer
                     - type: string
                     description: 'capacity is the user provided value for filesystem
-                      pool size (Ex: 1Ti)'
+                      pool size (Ex: 1Ti) This parameter is unsupported, do not use.'
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
                   disks:
                     description: disks is a list of local disk names to be included
-                      from this pool
+                      from this pool. All local disks that are specified here must
+                      have the same "type" ("shared" or "unshared") as this filesystem
+                      has defined in the spec.
                     items:
                       type: string
                     type: array
@@ -857,8 +863,11 @@ spec:
                     type: string
                   storageClass:
                     description: storageClass is the storage class that will be verified
-                      and used for disk device creation
+                      and used for disk device creation This parameter is unsupported,
+                      do not use.
                     type: string
+                required:
+                - disks
                 type: object
               replication:
                 default: 3-way
@@ -1143,6 +1152,23 @@ spec:
           spec:
             description: spec defines the desired state of Cluster
             properties:
+              csi:
+                description: csi defines the configuration of the Container Storage
+                  Interface (CSI).
+                properties:
+                  sidecar:
+                    description: sidecar specifies configuration options for the CSI
+                      sidecar pods
+                    properties:
+                      nodeSelector:
+                        additionalProperties:
+                          type: string
+                        description: nodeSelector is the label selector for CSI sidecar
+                          pods. Nodes that do not run an IBM Storage Scale core pod
+                          are ignored for scheduling CSI sidecar pods.
+                        type: object
+                    type: object
+                type: object
               daemon:
                 description: It tells the operator how to configure the gpfs daemons.
                 properties:
@@ -1376,6 +1402,41 @@ spec:
                       - operator
                       type: object
                     type: array
+                  nsdDevicesConfig:
+                    description: nsdDevicesConfig allows users to specify non-standard
+                      device names in order to override or enhance the disk discovery
+                      process. This parameter must only be specified when using a
+                      local filesystem with devices that use non-standard device names.
+                    properties:
+                      bypassDiscovery:
+                        default: true
+                        description: bypassDiscovery allows bypass of automatic disk
+                          discovery. If set to true, only the set of devices defined
+                          by the localDevicePaths will be used. If set to false, the
+                          automatic device discovery will find devices with standard
+                          device names.
+                        enum:
+                        - true
+                        - false
+                        type: boolean
+                      localDevicePaths:
+                        description: localDevicePaths specifies the device names and
+                          device types.
+                        items:
+                          properties:
+                            devicePath:
+                              description: 'devicePath specifies nsd device names.
+                                Allows wildcards. For example: ''/dev/sdd'', ''/dev/pvc*'',
+                                ...'
+                              type: string
+                            deviceType:
+                              default: generic
+                              description: 'deviceType specifies the device type.
+                                For example: ''dmm'', ''vpath'', ''generic'', ...'
+                              type: string
+                          type: object
+                        type: array
+                    type: object
                   roles:
                     description: roles specify the IBM Spectrum Scale configuration
                       parameters for nodes that apply to a role. Specifying configuration
@@ -1579,6 +1640,122 @@ spec:
                           type: string
                       type: object
                     type: array
+                  update:
+                    description: update defines the update behavior of the Scale core
+                      pods. If not specified, all core pods are updated one by one.
+                    properties:
+                      maxUnavailable:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: maxUnavailable defines either an integer number
+                          or percentage of core pods and nodes that can go Unavailable
+                          during an update. This only affects core pods that do not
+                          reside in any update pool (see `pools` parameter). The default
+                          value is 1. A value larger than 1 will mean multiple core
+                          pods and nodes going unavailable during the update, which
+                          causes that PV storage of Storage Scale CSI is unavailable
+                          and may affect your workload stress on the remaining nodes.
+                          You cannot set this value to 0 to stop updates; to stop
+                          updates, use the 'paused' property instead.
+                        x-kubernetes-int-or-string: true
+                      paused:
+                        default: false
+                        description: paused specifies whether or not updates should
+                          be stopped. This only affects core pods that do not reside
+                          in any update pool (see `pools` parameter).
+                        type: boolean
+                      pools:
+                        description: pools describe a set of update pools. An update
+                          pool describes the update behavior of selected core pods,
+                          for example how many pods can be updated in parallel.
+                        items:
+                          properties:
+                            maxUnavailable:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              description: maxUnavailable defines either an integer
+                                number or percentage of core pods and nodes in the
+                                pool that can go Unavailable during an update. The
+                                default value is 1. A value larger than 1 will mean
+                                multiple core pods and nodes going unavailable during
+                                the update, which causes that PV storage of Storage
+                                Scale CSI is unavailable and may affect your workload
+                                stress on the remaining nodes. You cannot set this
+                                value to 0 to stop updates; to stop updates, use the
+                                'paused' property instead. This parameter must not
+                                be specified if the update pool references to an Openshift
+                                MachineConfigPool (means pool name has "mcp/" prefix).
+                              x-kubernetes-int-or-string: true
+                            name:
+                              description: name is the name of the update pool. This
+                                pool references to an OpenShift MachineConfigPool
+                                if the name has a "mcp/" prefix (for example "mcp/worker").
+                              type: string
+                            nodeSelector:
+                              description: nodeSelector selects the Kubernetes nodes
+                                that host the core pods that belong to this update
+                                pool. Nodes that do not host a core pod are ignored.
+                                This parameter must not be specified if the update
+                                pool references to an Openshift MachineConfigPool
+                                (means pool name has "mcp/" prefix).
+                              properties:
+                                matchExpressions:
+                                  description: matchExpressions is a list of label
+                                    selector requirements. The requirements are ANDed.
+                                  items:
+                                    description: A label selector requirement is a
+                                      selector that contains values, a key, and an
+                                      operator that relates the key and values.
+                                    properties:
+                                      key:
+                                        description: key is the label key that the
+                                          selector applies to.
+                                        type: string
+                                      operator:
+                                        description: operator represents a key's relationship
+                                          to a set of values. Valid operators are
+                                          In, NotIn, Exists and DoesNotExist.
+                                        type: string
+                                      values:
+                                        description: values is an array of string
+                                          values. If the operator is In or NotIn,
+                                          the values array must be non-empty. If the
+                                          operator is Exists or DoesNotExist, the
+                                          values array must be empty. This array is
+                                          replaced during a strategic merge patch.
+                                        items:
+                                          type: string
+                                        type: array
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  description: matchLabels is a map of {key,value}
+                                    pairs. A single {key,value} in the matchLabels
+                                    map is equivalent to an element of matchExpressions,
+                                    whose key field is "key", the operator is "In",
+                                    and the values array contains only "value". The
+                                    requirements are ANDed.
+                                  type: object
+                              type: object
+                            paused:
+                              default: false
+                              description: paused specifies whether or not updates
+                                to this update pool should be stopped. This parameter
+                                is ignored if the update pool references to an Openshift
+                                MachineConfigPool (means pool name has "mcp/" prefix).
+                              type: boolean
+                          required:
+                          - name
+                          type: object
+                        type: array
+                    type: object
                 type: object
               grafanaBridge:
                 description: It tells the operator how to configure Grafana Bridge.
@@ -1687,7 +1864,7 @@ spec:
                 properties:
                   accept:
                     description: Read the license and specify "true" to accept or
-                      "false" to not accept. https://www.ibm.com/support/customer/csol/terms/?id=L-NHZT-DDTBMX
+                      "false" to not accept. https://www.ibm.com/support/customer/csol/terms/?id=L-GAVP-XASM9S
                       BY DOWNLOADING, INSTALLING, COPYING, ACCESSING, CLICKING ON
                       AN "ACCEPT" BUTTON, OR OTHERWISE USING THE PROGRAM, LICENSEE
                       AGREES TO THE TERMS OF THIS AGREEMENT. IF YOU ARE ACCEPTING
@@ -3878,6 +4055,39 @@ spec:
                   - operator
                   type: object
                 type: array
+              nsdDevicesConfig:
+                description: nsdDevicesConfig allows users to specify non-standard
+                  device names in order to override or enhance the disk discovery
+                  process. This parameter must only be specified when using a local
+                  filesystem with devices that use non-standard device names.
+                properties:
+                  bypassDiscovery:
+                    default: true
+                    description: bypassDiscovery allows bypass of automatic disk discovery.
+                      If set to true, only the set of devices defined by the localDevicePaths
+                      will be used. If set to false, the automatic device discovery
+                      will find devices with standard device names.
+                    enum:
+                    - true
+                    - false
+                    type: boolean
+                  localDevicePaths:
+                    description: localDevicePaths specifies the device names and device
+                      types.
+                    items:
+                      properties:
+                        devicePath:
+                          description: 'devicePath specifies nsd device names. Allows
+                            wildcards. For example: ''/dev/sdd'', ''/dev/pvc*'', ...'
+                          type: string
+                        deviceType:
+                          default: generic
+                          description: 'deviceType specifies the device type. For
+                            example: ''dmm'', ''vpath'', ''generic'', ...'
+                          type: string
+                      type: object
+                    type: array
+                type: object
               regionalDR:
                 description: regionalDR contains daemon configuration information
                   for regionaldr
@@ -4101,6 +4311,121 @@ spec:
                       type: string
                   type: object
                 type: array
+              update:
+                description: update defines the update behavior of the Scale core
+                  pods. If not specified, all core pods are updated one by one.
+                properties:
+                  maxUnavailable:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: maxUnavailable defines either an integer number or
+                      percentage of core pods and nodes that can go Unavailable during
+                      an update. This only affects core pods that do not reside in
+                      any update pool (see `pools` parameter). The default value is
+                      1. A value larger than 1 will mean multiple core pods and nodes
+                      going unavailable during the update, which causes that PV storage
+                      of Storage Scale CSI is unavailable and may affect your workload
+                      stress on the remaining nodes. You cannot set this value to
+                      0 to stop updates; to stop updates, use the 'paused' property
+                      instead.
+                    x-kubernetes-int-or-string: true
+                  paused:
+                    default: false
+                    description: paused specifies whether or not updates should be
+                      stopped. This only affects core pods that do not reside in any
+                      update pool (see `pools` parameter).
+                    type: boolean
+                  pools:
+                    description: pools describe a set of update pools. An update pool
+                      describes the update behavior of selected core pods, for example
+                      how many pods can be updated in parallel.
+                    items:
+                      properties:
+                        maxUnavailable:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: maxUnavailable defines either an integer number
+                            or percentage of core pods and nodes in the pool that
+                            can go Unavailable during an update. The default value
+                            is 1. A value larger than 1 will mean multiple core pods
+                            and nodes going unavailable during the update, which causes
+                            that PV storage of Storage Scale CSI is unavailable and
+                            may affect your workload stress on the remaining nodes.
+                            You cannot set this value to 0 to stop updates; to stop
+                            updates, use the 'paused' property instead. This parameter
+                            must not be specified if the update pool references to
+                            an Openshift MachineConfigPool (means pool name has "mcp/"
+                            prefix).
+                          x-kubernetes-int-or-string: true
+                        name:
+                          description: name is the name of the update pool. This pool
+                            references to an OpenShift MachineConfigPool if the name
+                            has a "mcp/" prefix (for example "mcp/worker").
+                          type: string
+                        nodeSelector:
+                          description: nodeSelector selects the Kubernetes nodes that
+                            host the core pods that belong to this update pool. Nodes
+                            that do not host a core pod are ignored. This parameter
+                            must not be specified if the update pool references to
+                            an Openshift MachineConfigPool (means pool name has "mcp/"
+                            prefix).
+                          properties:
+                            matchExpressions:
+                              description: matchExpressions is a list of label selector
+                                requirements. The requirements are ANDed.
+                              items:
+                                description: A label selector requirement is a selector
+                                  that contains values, a key, and an operator that
+                                  relates the key and values.
+                                properties:
+                                  key:
+                                    description: key is the label key that the selector
+                                      applies to.
+                                    type: string
+                                  operator:
+                                    description: operator represents a key's relationship
+                                      to a set of values. Valid operators are In,
+                                      NotIn, Exists and DoesNotExist.
+                                    type: string
+                                  values:
+                                    description: values is an array of string values.
+                                      If the operator is In or NotIn, the values array
+                                      must be non-empty. If the operator is Exists
+                                      or DoesNotExist, the values array must be empty.
+                                      This array is replaced during a strategic merge
+                                      patch.
+                                    items:
+                                      type: string
+                                    type: array
+                                required:
+                                - key
+                                - operator
+                                type: object
+                              type: array
+                            matchLabels:
+                              additionalProperties:
+                                type: string
+                              description: matchLabels is a map of {key,value} pairs.
+                                A single {key,value} in the matchLabels map is equivalent
+                                to an element of matchExpressions, whose key field
+                                is "key", the operator is "In", and the values array
+                                contains only "value". The requirements are ANDed.
+                              type: object
+                          type: object
+                        paused:
+                          default: false
+                          description: paused specifies whether or not updates to
+                            this update pool should be stopped. This parameter is
+                            ignored if the update pool references to an Openshift
+                            MachineConfigPool (means pool name has "mcp/" prefix).
+                          type: boolean
+                      required:
+                      - name
+                      type: object
+                    type: array
+                type: object
             required:
             - edition
             - site
@@ -4246,7 +4571,7 @@ spec:
                 - nodesCordonedByOthers
                 type: object
               failureGroup:
-                description: FailureGroup whose pods are upgraded next
+                description: FailureGroup whose pods are updated next
                 type: string
               minimumReleaseLevel:
                 description: The currently enabled level of functionality of the cluster.
@@ -4341,9 +4666,6 @@ spec:
                   nodesUnreachable:
                     description: List of core pod nodes that are unreachable
                     type: string
-                  nodesWaitingForReboot:
-                    description: List of core pod nodes that will be rebooted
-                    type: string
                   podsStarting:
                     description: List of starting core pods
                     type: string
@@ -4354,23 +4676,6 @@ spec:
                     description: List of core pods with unknown status. Pods scheduled
                       on unreachable nodes are listed here.
                     type: string
-                  podsUnsafeToDelete:
-                    description: List of core pods that can currently not be deleted
-                      because deleting the pods would result in an unsafe condition.
-                    items:
-                      properties:
-                        deleteUnsafeReason:
-                          description: The reason why the pods are unsafe to be deleted
-                          type: string
-                        pods:
-                          description: List of core pods that are not safe to be deleted
-                            by the Storage Scale operator
-                          type: string
-                      required:
-                      - deleteUnsafeReason
-                      - pods
-                      type: object
-                    type: array
                   podsWaitingToBeDeleted:
                     description: List of core pods that will be deleted soon
                     items:
@@ -4393,17 +4698,48 @@ spec:
                 required:
                 - nodesRebooting
                 - nodesUnreachable
-                - nodesWaitingForReboot
                 - podsStarting
                 - podsTerminating
                 - podsUnknown
                 - quorumPods
                 type: object
+              tiebreaker:
+                properties:
+                  version:
+                    type: string
+                type: object
+              update:
+                properties:
+                  pools:
+                    items:
+                      properties:
+                        name:
+                          type: string
+                        nodeCount:
+                          type: integer
+                        nodes:
+                          type: string
+                      required:
+                      - name
+                      - nodeCount
+                      - nodes
+                      type: object
+                    type: array
+                type: object
               versions:
+                description: Details about version of each node in IBM Spectrum Scale
+                  cluster. It contains the version of nodes in the other site if it's
+                  a stretch cluster.
                 items:
                   properties:
                     count:
                       description: Number of pods that that have this version
+                      type: string
+                    pods:
+                      description: List of pods that have this version
+                      type: string
+                    site:
+                      description: The site name in a stretch cluster environment
                       type: string
                     version:
                       description: Value of the pod's product version (expected format
@@ -5259,12 +5595,15 @@ spec:
                           - type: integer
                           - type: string
                           description: 'capacity is the user provided value for filesystem
-                            pool size (Ex: 1Ti)'
+                            pool size (Ex: 1Ti) This parameter is unsupported, do
+                            not use.'
                           pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                           x-kubernetes-int-or-string: true
                         disks:
                           description: disks is a list of local disk names to be included
-                            from this pool
+                            from this pool. All local disks that are specified here
+                            must have the same "type" ("shared" or "unshared") as
+                            this filesystem has defined in the spec.
                           items:
                             type: string
                           type: array
@@ -5275,22 +5614,38 @@ spec:
                           type: string
                         storageClass:
                           description: storageClass is the storage class that will
-                            be verified and used for disk device creation
+                            be verified and used for disk device creation This parameter
+                            is unsupported, do not use.
                           type: string
+                      required:
+                      - disks
                       type: object
                     maxItems: 8
                     minItems: 1
                     type: array
                   replication:
-                    default: 3-way
                     description: replication is the number of replicas to create for
-                      each data/metadata block that is written to the filesystem (only
-                      3-way is supported)
+                      each data/metadata block that is written to the filesystem.
+                      For type unshared only 3-way is allowed.
                     enum:
+                    - 1-way
+                    - 2-way
                     - 3-way
+                    type: string
+                  type:
+                    description: type defines the type of the local filesystem to
+                      create. Type "shared" is used for disks that have a path to
+                      all core pods with the "storage" role. Type "unshared" is used
+                      for disks that have a path to only one core pod. All local disks
+                      to be used for this filesystem must have the same type.
+                    enum:
+                    - shared
+                    - unshared
                     type: string
                 required:
                 - pools
+                - replication
+                - type
                 type: object
               remote:
                 description: If specified, describes the file system to be remote
@@ -5558,20 +5913,49 @@ spec:
                 description: pools displays status of the filesystem pools
                 items:
                   properties:
+                    diskCount:
+                      description: diskCount is the number of localdisk objects in
+                        this pool. Used only if the file system is not replicated
+                        (means if spec.local.replication is "1-way").
+                      type: integer
+                    disks:
+                      description: disks lists the names of the localdisk objects
+                        in this pool. Used only if the file system is not replicated
+                        (means if spec.local.replication is "1-way").
+                      type: string
                     failureGroups:
+                      description: failureGroups shows the status of disks in a failure
+                        group. Used only if the file system is replicated (means if
+                        spec.local.replication is not "1-way").
                       items:
                         properties:
                           diskCount:
+                            description: diskCount is the number of localdisk objects
+                              in this failure group of the pool. Used only if the
+                              file system is replicated (means if spec.local.replication
+                              is not "1-way").
                             type: integer
                           disks:
+                            description: disks lists the names of the localdisk objects
+                              in this failure group of the pool. Used only if the
+                              file system is replicated (means if spec.local.replication
+                              is not "1-way").
                             type: string
                           failureGroup:
                             description: failureGroup is the number of this failure
                               group
                             type: string
                           failureGroupMapping:
+                            description: failureGroupMapping shows the name of the
+                              entity that bundles the disks together in a failure
+                              group. This can be for example an kubernetes zone or
+                              region or a kubernetes node.
                             type: string
                           totalDiskSize:
+                            description: totalDiskSize is the sum of all disk sizes
+                              in this failure group of the pool. Used only if the
+                              file system is replicated (means if spec.local.replication
+                              is not "1-way").
                             type: string
                         type: object
                       type: array
@@ -5579,6 +5963,11 @@ spec:
                       default: system
                       description: 'name is the desired name of this pool (default:
                         system)'
+                      type: string
+                    totalDiskSize:
+                      description: totalDiskSize is the sum of all disk sizes in this
+                        pool. Used only if the file system is not replicated (means
+                        if spec.local.replication is "1-way").
                       type: string
                   type: object
                 type: array
@@ -5972,11 +6361,8 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.node
-      name: Node
-      type: string
-    - jsonPath: .status.device
-      name: Device
+    - jsonPath: .status.type
+      name: Type
       type: string
     - jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
@@ -6031,7 +6417,7 @@ spec:
               device:
                 description: device specifies the device path that is used at creation
                   time. The device path of a disk may change at later time after node
-                  reboots. The current device path is displayed in the status.
+                  reboots.
                 type: string
               existingDataSkipVerify:
                 description: existingDataSkipVerify controls whether existing Spectrum
@@ -6045,7 +6431,8 @@ spec:
                 type: boolean
               node:
                 description: node specifies the kubernetes node name of node where
-                  the local disk lives
+                  the local disk device path (see "device" parameter) is gathered
+                  from at creation time.
                 type: string
               thinDiskType:
                 default: "no"
@@ -6132,11 +6519,6 @@ spec:
                   - type
                   type: object
                 type: array
-              device:
-                description: device is the device path that the localdisk currently
-                  uses on the node. The device path of a disk may change after node
-                  reboots.
-                type: string
               failuregroup:
                 description: failuregroup is the failuregroup number for this localdisk.
                   The replicas of data blocks are written to localdisks with different
@@ -6158,13 +6540,19 @@ spec:
               size:
                 description: size is the size of the localdisk
                 type: string
+              type:
+                description: type of the localdisk. This is "unshared" if the disk
+                  is only connected to one core pod, "shared" if the disk is connected
+                  to all storage pods, or "partially-shared" if disk is connected
+                  to only a subset of the core pods.
+                type: string
             required:
-            - device
             - failuregroup
             - failuregroupMapping
             - filesystem
             - pool
             - size
+            - type
             type: object
         type: object
     served: true
@@ -6907,10 +7295,18 @@ spec:
                       is susceptible to machine-in-the-middle attacks.
                     type: boolean
                   passwordRotation:
-                    description: Automatic password rotation is disabled.
+                    description: passwordRotation allows to configure automatic password
+                      rotation of the container operator and CSI admin GUI users.
+                      Automatic password rotation is disabled if this section is not
+                      specified.
                     properties:
                       passwordChangeInterval:
-                        description: This is not supported.
+                        default: "80"
+                        description: 'passwordChangeInterval allows the configuration
+                          in days for the operator to change the user passwords on
+                          the storage cluster. Specify the value surrounded by double
+                          quotes (like passwordChangeInterval: "30"). The default
+                          value is 80 days.'
                         type: string
                     type: object
                   port:
@@ -8639,6 +9035,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - machineconfiguration.openshift.io
+  resources:
+  - machineconfigpools
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - networking.k8s.io
   resources:
   - networkpolicies
@@ -9599,21 +10003,21 @@ data:
     apiVersion: scale.spectrum.ibm.com/v1alpha1
     kind: ClusterManagerConfig
     images:
-      coreECE: cp.icr.io/cp/spectrum/scale/erasure-code/ibm-spectrum-scale-daemon@sha256:9adcab69b470572b1dd3ef2d965d9e3873165612ac3b8e089374d8d53d979841
-      coreDME: cp.icr.io/cp/spectrum/scale/data-management/ibm-spectrum-scale-daemon@sha256:3b151f02b65f8afcc5eb6bfe4a301efdf57a07f1e0d1733207c60ced583f9f9c
-      coreDAE: cp.icr.io/cp/spectrum/scale/data-access/ibm-spectrum-scale-daemon@sha256:2a52918950b00e99659950d4aec06141f447a0f258af78a96181d47fbcdd7594
-      coreInit: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-core-init@sha256:aeba255fe8a865ebf57618fcb490961854526008d86e31cd14f4495768071599
-      gui: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-gui@sha256:78216ac2a8157753bd70f273f5e696479538007f43312bacd8e7f8e30f146276
+      coreECE: cp.icr.io/cp/spectrum/scale/erasure-code/ibm-spectrum-scale-daemon@sha256:c5559b21f9f1ffe398a9f8ea5e6d23417e604bbfd19771eb72d1fb275a5f6157
+      coreDME: cp.icr.io/cp/spectrum/scale/data-management/ibm-spectrum-scale-daemon@sha256:02cfe2e798dc0092930723eb36d894a84d42905946f755d2abb000b9ce513f3f
+      coreDAE: cp.icr.io/cp/spectrum/scale/data-access/ibm-spectrum-scale-daemon@sha256:0ee38f491170ca6528644331dc6f1b6aedff1abd8a1ae0796fe48bf8a6fb011c
+      coreInit: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-core-init@sha256:1e1f7c53efed9b50833570ca6b29c03305b02b3ceeb391848bad29c75e36ddf7
+      gui: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-gui@sha256:44c2e3bb807b9a8724301f0bbe9014b0c53d4a8efa161554efb6a7ec8e85131e
       postgres: cp.icr.io/cp/spectrum/scale/postgres@sha256:bbd7346fab25b7e0b25f214829d6ebfb78ef0465059492e46dee740ce8fcd844
-      logs: cp.icr.io/cp/spectrum/scale/ubi-minimal@sha256:bc552efb4966aaa44b02532be3168ac1ff18e2af299d0fe89502a1d9fabafbc5
-      pmcollector: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-pmcollector@sha256:bc7c25bd407f0abbd980cb59fbc2353ab41fb2fffb3f8d00aac9b000584cd1ba
-      sysmon: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-monitor@sha256:9d340ff16b39373ded4b6baea7210d5daeb2a7ce91d65447ad156e0c9dc2f4cd
-      grafanaBridge: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-grafana-bridge@sha256:cb7133b83cf96ca1c6c697a48de3faf57197d2a46225102d451cc7c7217bec30
+      logs: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-logs@sha256:5dd3ef4f95dfa19c3a72103e90732266e95114ea1e65762ff844c96adadee329
+      pmcollector: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-pmcollector@sha256:f7a284866a968c7ad20e752d76610491e08348647a3ee249057dadd4e105d57e
+      sysmon: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-monitor@sha256:27cdeaa43caceafc60cd5cf6f373d1f0a6661e852896094fdc9c0daf005691f3
+      grafanaBridge: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-grafana-bridge@sha256:603f3a47d31f7f33671b013efc5c5f82f1208350415e1850877115c9bd04d557
       coreDNS: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-coredns@sha256:88cbfe40fd302a6467cb7e852b298f6c8d8659782ab313706d491d3ddf172a6e
-      mustGather: icr.io/cpopen/ibm-spectrum-scale-must-gather@sha256:961dae6fed4b8b2ef8e4e20db2bac41c79ff5a302e50f7f552dfb4b61ea1d08e
-      ganesha: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-ganesha@sha256:efa2e85ed030c7d1cc2f384075c23a9fd85d3a6fd6b4ba5a84358fb7ae262a91
-      stunnel: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-stunnel@sha256:68adcf8f747c19d0e2f4b167a0c1852360003a4302482c66e762984667640e6d
-      pmsensors: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-pmsensors@sha256:e360209221c94045fe06ed67ba31a6d0cec74677bd57c0cac7e2a31d6f2a2a42
+      mustGather: icr.io/cpopen/ibm-spectrum-scale-must-gather@sha256:655296105968d876901bdc9db735aa52d417dfeeb737fd03e79a27260962b163
+      ganesha: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-ganesha@sha256:3d745e1b5df68a252f8ef0395abec208313250c5d35984fc5c7283c7047b9a82
+      stunnel: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-stunnel@sha256:87744da3d3d423ec895439aadcf163a291c120aec50abbdb4c3d623be008cd77
+      pmsensors: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-pmsensors@sha256:45be0a941bd66619e56c5880186f5e59a5d288c658e39f6b69aaf71441683285
 kind: ConfigMap
 metadata:
   labels:
@@ -9645,7 +10049,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    productVersion: 2.11.1
+    productVersion: 2.12.0
   labels:
     app.kubernetes.io/instance: ibm-spectrum-scale-csi-operator
     app.kubernetes.io/managed-by: ibm-spectrum-scale-csi-operator
@@ -9664,7 +10068,7 @@ spec:
       annotations:
         productID: ibm-spectrum-scale-csi-operator
         productName: IBM Spectrum Scale CSI Operator
-        productVersion: 2.11.1
+        productVersion: 2.12.0
       labels:
         app.kubernetes.io/instance: ibm-spectrum-scale-csi-operator
         app.kubernetes.io/managed-by: ibm-spectrum-scale-csi-operator
@@ -9691,26 +10095,26 @@ spec:
         - name: SHORTNAME_NODE_MAPPING
           value: "yes"
         - name: CSI_SNAPSHOTTER_IMAGE
-          value: cp.icr.io/cp/spectrum/scale/csi/csi-snapshotter@sha256:1a29ab1e4ecdc33a84062cec757620d9787c28b28793202c5b78ae097c3dee27
+          value: cp.icr.io/cp/spectrum/scale/csi/csi-snapshotter@sha256:2e04046334baf9be425bb0fa1d04c2d1720d770825eedbdbcdb10d430da4ad8c
         - name: CSI_ATTACHER_IMAGE
-          value: cp.icr.io/cp/spectrum/scale/csi/csi-attacher@sha256:d69cc72025f7c40dae112ff989e920a3331583497c8dfb1600c5ae0e37184a29
+          value: cp.icr.io/cp/spectrum/scale/csi/csi-attacher@sha256:b4d611100ece2f9bc980d1cb19c2285b8868da261e3b1ee8f45448ab5512ab94
         - name: CSI_PROVISIONER_IMAGE
-          value: cp.icr.io/cp/spectrum/scale/csi/csi-provisioner@sha256:de79c8bbc271622eb94d2ee8689f189ea7c1cb6adac260a421980fe5eed66708
+          value: cp.icr.io/cp/spectrum/scale/csi/csi-provisioner@sha256:bf5a235b67d8aea00f5b8ec24d384a2480e1017d5458d8a63b361e9eeb1608a9
         - name: CSI_LIVENESSPROBE_IMAGE
           value: cp.icr.io/cp/spectrum/scale/csi/livenessprobe@sha256:5baeb4a6d7d517434292758928bb33efc6397368cbb48c8a4cf29496abf4e987
         - name: CSI_NODE_REGISTRAR_IMAGE
-          value: cp.icr.io/cp/spectrum/scale/csi/csi-node-driver-registrar@sha256:c53535af8a7f7e3164609838c4b191b42b2d81238d75c1b2a2b582ada62a9780
+          value: cp.icr.io/cp/spectrum/scale/csi/csi-node-driver-registrar@sha256:f25af73ee708ff9c82595ae99493cdef9295bd96953366cddf36305f82555dac
         - name: CSI_RESIZER_IMAGE
-          value: cp.icr.io/cp/spectrum/scale/csi/csi-resizer@sha256:4c148bbdf883153bc72d321be4dc55c33774a6d98b2b3e0c2da6ae389149a9b7
+          value: cp.icr.io/cp/spectrum/scale/csi/csi-resizer@sha256:a541e6cc2d8b011bb21b1d4ffec6b090e85270cce6276ee302d86153eec0af43
         - name: CSI_DRIVER_IMAGE
-          value: cp.icr.io/cp/spectrum/scale/csi/ibm-spectrum-scale-csi-driver@sha256:fb25463d85c1a81555e481118b24c30d337397a9719547a02d3a408bb645ae0f
+          value: cp.icr.io/cp/spectrum/scale/csi/ibm-spectrum-scale-csi-driver@sha256:96e3264bc922826d6f3e8e3d3be4d010c67f65cf5b16e2acadd5ae75258e3ef3
         - name: METRICS_BIND_ADDRESS
           value: "8383"
         - name: WATCH_NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        image: icr.io/cpopen/ibm-spectrum-scale-csi-operator@sha256:c5ab8375e746233fe3370af25c4b6431742e95d04d042b4b2587002c8c3e71a6
+        image: icr.io/cpopen/ibm-spectrum-scale-csi-operator@sha256:b93ac6b84a5d538fce576c8182f63c7f5d377df3a05c71b8ec64ed664ad30a25
         imagePullPolicy: IfNotPresent
         livenessProbe:
           exec:
@@ -9763,7 +10167,7 @@ metadata:
   labels:
     app.kubernetes.io/instance: ibm-spectrum-scale
     app.kubernetes.io/name: operator
-    app.kubernetes.io/version: v5.2.0.1
+    app.kubernetes.io/version: v5.2.1.0
     control-plane: controller-manager
   name: ibm-spectrum-scale-controller-manager
   namespace: ibm-spectrum-scale-operator
@@ -9779,11 +10183,22 @@ spec:
       labels:
         app.kubernetes.io/instance: ibm-spectrum-scale
         app.kubernetes.io/name: operator
-        app.kubernetes.io/version: v5.2.0.1
+        app.kubernetes.io/version: v5.2.1.0
         control-plane: controller-manager
     spec:
       affinity:
         nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - preference:
+              matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+            weight: 90
+          - preference:
+              matchExpressions:
+              - key: scale.spectrum.ibm.com/controller-manager
+                operator: Exists
+            weight: 100
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
             - matchExpressions:
@@ -9810,7 +10225,7 @@ spec:
           valueFrom:
             resourceFieldRef:
               resource: limits.memory
-        image: icr.io/cpopen/ibm-spectrum-scale-operator@sha256:f05458bc60d84522cf9ac4386151ed05454273ed9c8078db743bb406891ffde8
+        image: icr.io/cpopen/ibm-spectrum-scale-operator@sha256:9a87ce8dda3d461eb48fc47f6b7c7e43e31f64918acd68cc5c89818e8a1fe309
         livenessProbe:
           httpGet:
             path: /healthz
@@ -9853,8 +10268,6 @@ spec:
           name: manager-config
         - mountPath: /etc/ssl/service
           name: cabundle
-      nodeSelector:
-        node-role.kubernetes.io/master: ""
       serviceAccountName: ibm-spectrum-scale-operator
       terminationGracePeriodSeconds: 10
       tolerations:
@@ -10144,6 +10557,27 @@ webhooks:
     - UPDATE
     resources:
     - clusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: ibm-spectrum-scale-webhook-service
+      namespace: ibm-spectrum-scale-operator
+      path: /validate-scale-spectrum-ibm-com-v1beta1-encryptionconfig
+  failurePolicy: Fail
+  name: vencryptionconfig.scale.spectrum.ibm.com
+  rules:
+  - apiGroups:
+    - scale.spectrum.ibm.com
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - encryptionconfigs
   sideEffects: None
 - admissionReviewVersions:
   - v1

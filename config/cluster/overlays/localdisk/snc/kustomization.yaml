@@ -8,4 +8,4 @@ commonLabels:
   app.kubernetes.io/name: cluster
 
 components:
-  - ../../components/localdisk
+  - ../../../components/localdisk/snc

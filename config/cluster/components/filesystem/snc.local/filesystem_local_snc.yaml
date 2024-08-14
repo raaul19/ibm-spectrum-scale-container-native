@@ -4,6 +4,8 @@ metadata:
   name: local-sample
 spec:
   local:
+    type: unshared
+    replication: 3-way
     blockSize: 4M
     pools:
     - name: system

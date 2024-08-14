@@ -59,6 +59,10 @@ spec:
                 - IBMCloud
                 - KubeVirt
                 - EquinixMetal
+                - PowerVS
+                - AlibabaCloud
+                - Nutanix
+                - External
                 type: string
               pool:
                 description: pool is the user provided value for creating spectrum
@@ -69,12 +73,14 @@ spec:
                     - type: integer
                     - type: string
                     description: 'capacity is the user provided value for filesystem
-                      pool size (Ex: 1Ti)'
+                      pool size (Ex: 1Ti) This parameter is unsupported, do not use.'
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
                   disks:
                     description: disks is a list of local disk names to be included
-                      from this pool
+                      from this pool. All local disks that are specified here must
+                      have the same "type" ("shared" or "unshared") as this filesystem
+                      has defined in the spec.
                     items:
                       type: string
                     type: array
@@ -85,8 +91,11 @@ spec:
                     type: string
                   storageClass:
                     description: storageClass is the storage class that will be verified
-                      and used for disk device creation
+                      and used for disk device creation This parameter is unsupported,
+                      do not use.
                     type: string
+                required:
+                - disks
                 type: object
               replication:
                 default: 3-way

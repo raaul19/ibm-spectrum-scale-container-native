@@ -21,11 +21,8 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.node
-      name: Node
-      type: string
-    - jsonPath: .status.device
-      name: Device
+    - jsonPath: .status.type
+      name: Type
       type: string
     - jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
@@ -80,7 +77,7 @@ spec:
               device:
                 description: device specifies the device path that is used at creation
                   time. The device path of a disk may change at later time after node
-                  reboots. The current device path is displayed in the status.
+                  reboots.
                 type: string
               existingDataSkipVerify:
                 description: existingDataSkipVerify controls whether existing Spectrum
@@ -94,7 +91,8 @@ spec:
                 type: boolean
               node:
                 description: node specifies the kubernetes node name of node where
-                  the local disk lives
+                  the local disk device path (see "device" parameter) is gathered
+                  from at creation time.
                 type: string
               thinDiskType:
                 default: "no"
@@ -181,11 +179,6 @@ spec:
                   - type
                   type: object
                 type: array
-              device:
-                description: device is the device path that the localdisk currently
-                  uses on the node. The device path of a disk may change after node
-                  reboots.
-                type: string
               failuregroup:
                 description: failuregroup is the failuregroup number for this localdisk.
                   The replicas of data blocks are written to localdisks with different
@@ -207,13 +200,19 @@ spec:
               size:
                 description: size is the size of the localdisk
                 type: string
+              type:
+                description: type of the localdisk. This is "unshared" if the disk
+                  is only connected to one core pod, "shared" if the disk is connected
+                  to all storage pods, or "partially-shared" if disk is connected
+                  to only a subset of the core pods.
+                type: string
             required:
-            - device
             - failuregroup
             - failuregroupMapping
             - filesystem
             - pool
             - size
+            - type
             type: object
         type: object
     served: true

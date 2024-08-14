@@ -46,6 +46,23 @@ spec:
           spec:
             description: spec defines the desired state of Cluster
             properties:
+              csi:
+                description: csi defines the configuration of the Container Storage
+                  Interface (CSI).
+                properties:
+                  sidecar:
+                    description: sidecar specifies configuration options for the CSI
+                      sidecar pods
+                    properties:
+                      nodeSelector:
+                        additionalProperties:
+                          type: string
+                        description: nodeSelector is the label selector for CSI sidecar
+                          pods. Nodes that do not run an IBM Storage Scale core pod
+                          are ignored for scheduling CSI sidecar pods.
+                        type: object
+                    type: object
+                type: object
               daemon:
                 description: It tells the operator how to configure the gpfs daemons.
                 properties:
@@ -279,6 +296,41 @@ spec:
                       - operator
                       type: object
                     type: array
+                  nsdDevicesConfig:
+                    description: nsdDevicesConfig allows users to specify non-standard
+                      device names in order to override or enhance the disk discovery
+                      process. This parameter must only be specified when using a
+                      local filesystem with devices that use non-standard device names.
+                    properties:
+                      bypassDiscovery:
+                        default: true
+                        description: bypassDiscovery allows bypass of automatic disk
+                          discovery. If set to true, only the set of devices defined
+                          by the localDevicePaths will be used. If set to false, the
+                          automatic device discovery will find devices with standard
+                          device names.
+                        enum:
+                        - true
+                        - false
+                        type: boolean
+                      localDevicePaths:
+                        description: localDevicePaths specifies the device names and
+                          device types.
+                        items:
+                          properties:
+                            devicePath:
+                              description: 'devicePath specifies nsd device names.
+                                Allows wildcards. For example: ''/dev/sdd'', ''/dev/pvc*'',
+                                ...'
+                              type: string
+                            deviceType:
+                              default: generic
+                              description: 'deviceType specifies the device type.
+                                For example: ''dmm'', ''vpath'', ''generic'', ...'
+                              type: string
+                          type: object
+                        type: array
+                    type: object
                   roles:
                     description: roles specify the IBM Spectrum Scale configuration
                       parameters for nodes that apply to a role. Specifying configuration
@@ -482,6 +534,122 @@ spec:
                           type: string
                       type: object
                     type: array
+                  update:
+                    description: update defines the update behavior of the Scale core
+                      pods. If not specified, all core pods are updated one by one.
+                    properties:
+                      maxUnavailable:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: maxUnavailable defines either an integer number
+                          or percentage of core pods and nodes that can go Unavailable
+                          during an update. This only affects core pods that do not
+                          reside in any update pool (see `pools` parameter). The default
+                          value is 1. A value larger than 1 will mean multiple core
+                          pods and nodes going unavailable during the update, which
+                          causes that PV storage of Storage Scale CSI is unavailable
+                          and may affect your workload stress on the remaining nodes.
+                          You cannot set this value to 0 to stop updates; to stop
+                          updates, use the 'paused' property instead.
+                        x-kubernetes-int-or-string: true
+                      paused:
+                        default: false
+                        description: paused specifies whether or not updates should
+                          be stopped. This only affects core pods that do not reside
+                          in any update pool (see `pools` parameter).
+                        type: boolean
+                      pools:
+                        description: pools describe a set of update pools. An update
+                          pool describes the update behavior of selected core pods,
+                          for example how many pods can be updated in parallel.
+                        items:
+                          properties:
+                            maxUnavailable:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              description: maxUnavailable defines either an integer
+                                number or percentage of core pods and nodes in the
+                                pool that can go Unavailable during an update. The
+                                default value is 1. A value larger than 1 will mean
+                                multiple core pods and nodes going unavailable during
+                                the update, which causes that PV storage of Storage
+                                Scale CSI is unavailable and may affect your workload
+                                stress on the remaining nodes. You cannot set this
+                                value to 0 to stop updates; to stop updates, use the
+                                'paused' property instead. This parameter must not
+                                be specified if the update pool references to an Openshift
+                                MachineConfigPool (means pool name has "mcp/" prefix).
+                              x-kubernetes-int-or-string: true
+                            name:
+                              description: name is the name of the update pool. This
+                                pool references to an OpenShift MachineConfigPool
+                                if the name has a "mcp/" prefix (for example "mcp/worker").
+                              type: string
+                            nodeSelector:
+                              description: nodeSelector selects the Kubernetes nodes
+                                that host the core pods that belong to this update
+                                pool. Nodes that do not host a core pod are ignored.
+                                This parameter must not be specified if the update
+                                pool references to an Openshift MachineConfigPool
+                                (means pool name has "mcp/" prefix).
+                              properties:
+                                matchExpressions:
+                                  description: matchExpressions is a list of label
+                                    selector requirements. The requirements are ANDed.
+                                  items:
+                                    description: A label selector requirement is a
+                                      selector that contains values, a key, and an
+                                      operator that relates the key and values.
+                                    properties:
+                                      key:
+                                        description: key is the label key that the
+                                          selector applies to.
+                                        type: string
+                                      operator:
+                                        description: operator represents a key's relationship
+                                          to a set of values. Valid operators are
+                                          In, NotIn, Exists and DoesNotExist.
+                                        type: string
+                                      values:
+                                        description: values is an array of string
+                                          values. If the operator is In or NotIn,
+                                          the values array must be non-empty. If the
+                                          operator is Exists or DoesNotExist, the
+                                          values array must be empty. This array is
+                                          replaced during a strategic merge patch.
+                                        items:
+                                          type: string
+                                        type: array
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  description: matchLabels is a map of {key,value}
+                                    pairs. A single {key,value} in the matchLabels
+                                    map is equivalent to an element of matchExpressions,
+                                    whose key field is "key", the operator is "In",
+                                    and the values array contains only "value". The
+                                    requirements are ANDed.
+                                  type: object
+                              type: object
+                            paused:
+                              default: false
+                              description: paused specifies whether or not updates
+                                to this update pool should be stopped. This parameter
+                                is ignored if the update pool references to an Openshift
+                                MachineConfigPool (means pool name has "mcp/" prefix).
+                              type: boolean
+                          required:
+                          - name
+                          type: object
+                        type: array
+                    type: object
                 type: object
               grafanaBridge:
                 description: It tells the operator how to configure Grafana Bridge.
@@ -590,7 +758,7 @@ spec:
                 properties:
                   accept:
                     description: Read the license and specify "true" to accept or
-                      "false" to not accept. https://www.ibm.com/support/customer/csol/terms/?id=L-NHZT-DDTBMX
+                      "false" to not accept. https://www.ibm.com/support/customer/csol/terms/?id=L-GAVP-XASM9S
                       BY DOWNLOADING, INSTALLING, COPYING, ACCESSING, CLICKING ON
                       AN "ACCEPT" BUTTON, OR OTHERWISE USING THE PROGRAM, LICENSEE
                       AGREES TO THE TERMS OF THIS AGREEMENT. IF YOU ARE ACCEPTING

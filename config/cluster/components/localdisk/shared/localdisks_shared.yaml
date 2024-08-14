@@ -1,0 +1,23 @@
+apiVersion: scale.spectrum.ibm.com/v1beta1
+kind: LocalDisk
+metadata:
+  name: disk0
+spec:
+  node: worker0.example.com
+  device: /dev/vdb
+---
+apiVersion: scale.spectrum.ibm.com/v1beta1
+kind: LocalDisk
+metadata:
+  name: disk1
+spec:
+  node: worker0.example.com
+  device: /dev/vdc
+---
+apiVersion: scale.spectrum.ibm.com/v1beta1
+kind: LocalDisk
+metadata:
+  name: disk2
+spec:
+  node: worker0.example.com
+  device: /dev/vdd

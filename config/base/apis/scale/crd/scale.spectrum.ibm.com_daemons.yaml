@@ -325,6 +325,39 @@ spec:
                   - operator
                   type: object
                 type: array
+              nsdDevicesConfig:
+                description: nsdDevicesConfig allows users to specify non-standard
+                  device names in order to override or enhance the disk discovery
+                  process. This parameter must only be specified when using a local
+                  filesystem with devices that use non-standard device names.
+                properties:
+                  bypassDiscovery:
+                    default: true
+                    description: bypassDiscovery allows bypass of automatic disk discovery.
+                      If set to true, only the set of devices defined by the localDevicePaths
+                      will be used. If set to false, the automatic device discovery
+                      will find devices with standard device names.
+                    enum:
+                    - true
+                    - false
+                    type: boolean
+                  localDevicePaths:
+                    description: localDevicePaths specifies the device names and device
+                      types.
+                    items:
+                      properties:
+                        devicePath:
+                          description: 'devicePath specifies nsd device names. Allows
+                            wildcards. For example: ''/dev/sdd'', ''/dev/pvc*'', ...'
+                          type: string
+                        deviceType:
+                          default: generic
+                          description: 'deviceType specifies the device type. For
+                            example: ''dmm'', ''vpath'', ''generic'', ...'
+                          type: string
+                      type: object
+                    type: array
+                type: object
               regionalDR:
                 description: regionalDR contains daemon configuration information
                   for regionaldr
@@ -548,6 +581,121 @@ spec:
                       type: string
                   type: object
                 type: array
+              update:
+                description: update defines the update behavior of the Scale core
+                  pods. If not specified, all core pods are updated one by one.
+                properties:
+                  maxUnavailable:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: maxUnavailable defines either an integer number or
+                      percentage of core pods and nodes that can go Unavailable during
+                      an update. This only affects core pods that do not reside in
+                      any update pool (see `pools` parameter). The default value is
+                      1. A value larger than 1 will mean multiple core pods and nodes
+                      going unavailable during the update, which causes that PV storage
+                      of Storage Scale CSI is unavailable and may affect your workload
+                      stress on the remaining nodes. You cannot set this value to
+                      0 to stop updates; to stop updates, use the 'paused' property
+                      instead.
+                    x-kubernetes-int-or-string: true
+                  paused:
+                    default: false
+                    description: paused specifies whether or not updates should be
+                      stopped. This only affects core pods that do not reside in any
+                      update pool (see `pools` parameter).
+                    type: boolean
+                  pools:
+                    description: pools describe a set of update pools. An update pool
+                      describes the update behavior of selected core pods, for example
+                      how many pods can be updated in parallel.
+                    items:
+                      properties:
+                        maxUnavailable:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: maxUnavailable defines either an integer number
+                            or percentage of core pods and nodes in the pool that
+                            can go Unavailable during an update. The default value
+                            is 1. A value larger than 1 will mean multiple core pods
+                            and nodes going unavailable during the update, which causes
+                            that PV storage of Storage Scale CSI is unavailable and
+                            may affect your workload stress on the remaining nodes.
+                            You cannot set this value to 0 to stop updates; to stop
+                            updates, use the 'paused' property instead. This parameter
+                            must not be specified if the update pool references to
+                            an Openshift MachineConfigPool (means pool name has "mcp/"
+                            prefix).
+                          x-kubernetes-int-or-string: true
+                        name:
+                          description: name is the name of the update pool. This pool
+                            references to an OpenShift MachineConfigPool if the name
+                            has a "mcp/" prefix (for example "mcp/worker").
+                          type: string
+                        nodeSelector:
+                          description: nodeSelector selects the Kubernetes nodes that
+                            host the core pods that belong to this update pool. Nodes
+                            that do not host a core pod are ignored. This parameter
+                            must not be specified if the update pool references to
+                            an Openshift MachineConfigPool (means pool name has "mcp/"
+                            prefix).
+                          properties:
+                            matchExpressions:
+                              description: matchExpressions is a list of label selector
+                                requirements. The requirements are ANDed.
+                              items:
+                                description: A label selector requirement is a selector
+                                  that contains values, a key, and an operator that
+                                  relates the key and values.
+                                properties:
+                                  key:
+                                    description: key is the label key that the selector
+                                      applies to.
+                                    type: string
+                                  operator:
+                                    description: operator represents a key's relationship
+                                      to a set of values. Valid operators are In,
+                                      NotIn, Exists and DoesNotExist.
+                                    type: string
+                                  values:
+                                    description: values is an array of string values.
+                                      If the operator is In or NotIn, the values array
+                                      must be non-empty. If the operator is Exists
+                                      or DoesNotExist, the values array must be empty.
+                                      This array is replaced during a strategic merge
+                                      patch.
+                                    items:
+                                      type: string
+                                    type: array
+                                required:
+                                - key
+                                - operator
+                                type: object
+                              type: array
+                            matchLabels:
+                              additionalProperties:
+                                type: string
+                              description: matchLabels is a map of {key,value} pairs.
+                                A single {key,value} in the matchLabels map is equivalent
+                                to an element of matchExpressions, whose key field
+                                is "key", the operator is "In", and the values array
+                                contains only "value". The requirements are ANDed.
+                              type: object
+                          type: object
+                        paused:
+                          default: false
+                          description: paused specifies whether or not updates to
+                            this update pool should be stopped. This parameter is
+                            ignored if the update pool references to an Openshift
+                            MachineConfigPool (means pool name has "mcp/" prefix).
+                          type: boolean
+                      required:
+                      - name
+                      type: object
+                    type: array
+                type: object
             required:
             - edition
             - site
@@ -693,7 +841,7 @@ spec:
                 - nodesCordonedByOthers
                 type: object
               failureGroup:
-                description: FailureGroup whose pods are upgraded next
+                description: FailureGroup whose pods are updated next
                 type: string
               minimumReleaseLevel:
                 description: The currently enabled level of functionality of the cluster.
@@ -788,9 +936,6 @@ spec:
                   nodesUnreachable:
                     description: List of core pod nodes that are unreachable
                     type: string
-                  nodesWaitingForReboot:
-                    description: List of core pod nodes that will be rebooted
-                    type: string
                   podsStarting:
                     description: List of starting core pods
                     type: string
@@ -801,23 +946,6 @@ spec:
                     description: List of core pods with unknown status. Pods scheduled
                       on unreachable nodes are listed here.
                     type: string
-                  podsUnsafeToDelete:
-                    description: List of core pods that can currently not be deleted
-                      because deleting the pods would result in an unsafe condition.
-                    items:
-                      properties:
-                        deleteUnsafeReason:
-                          description: The reason why the pods are unsafe to be deleted
-                          type: string
-                        pods:
-                          description: List of core pods that are not safe to be deleted
-                            by the Storage Scale operator
-                          type: string
-                      required:
-                      - deleteUnsafeReason
-                      - pods
-                      type: object
-                    type: array
                   podsWaitingToBeDeleted:
                     description: List of core pods that will be deleted soon
                     items:
@@ -840,17 +968,48 @@ spec:
                 required:
                 - nodesRebooting
                 - nodesUnreachable
-                - nodesWaitingForReboot
                 - podsStarting
                 - podsTerminating
                 - podsUnknown
                 - quorumPods
                 type: object
+              tiebreaker:
+                properties:
+                  version:
+                    type: string
+                type: object
+              update:
+                properties:
+                  pools:
+                    items:
+                      properties:
+                        name:
+                          type: string
+                        nodeCount:
+                          type: integer
+                        nodes:
+                          type: string
+                      required:
+                      - name
+                      - nodeCount
+                      - nodes
+                      type: object
+                    type: array
+                type: object
               versions:
+                description: Details about version of each node in IBM Spectrum Scale
+                  cluster. It contains the version of nodes in the other site if it's
+                  a stretch cluster.
                 items:
                   properties:
                     count:
                       description: Number of pods that that have this version
+                      type: string
+                    pods:
+                      description: List of pods that have this version
+                      type: string
+                    site:
+                      description: The site name in a stretch cluster environment
                       type: string
                     version:
                       description: Value of the pod's product version (expected format

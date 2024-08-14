@@ -31,8 +31,17 @@ spec:
                 - amd64
                 - ppc64le
                 - s390x
-      nodeSelector:
-        node-role.kubernetes.io/master: ""
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 90
+            preference:
+              matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: scale.spectrum.ibm.com/controller-manager
+                operator: Exists
       tolerations:
       - key: node-role.kubernetes.io/master
         effect: NoSchedule

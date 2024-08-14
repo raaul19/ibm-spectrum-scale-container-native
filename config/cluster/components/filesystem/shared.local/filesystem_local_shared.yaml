@@ -1,0 +1,20 @@
+apiVersion: scale.spectrum.ibm.com/v1beta1
+kind: Filesystem
+metadata:
+  name: local-sample
+spec:
+  local:
+    type: shared
+    replication: 1-way
+    blockSize: 4M
+    pools:
+    - name: system
+      disks:
+        - disk0
+        - disk1
+        - disk2
+  seLinuxOptions:
+    level: s0
+    role: object_r
+    type: container_file_t
+    user: system_u
