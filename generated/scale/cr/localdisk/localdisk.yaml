@@ -7,8 +7,16 @@ metadata:
   name: disk0
   namespace: ibm-spectrum-scale
 spec:
-  device: /dev/vdb
+  device: /dev/sdb
   node: worker0.example.com
+  nodeConnectionSelector:
+    matchExpressions:
+    - key: kubernetes.io/hostname
+      operator: In
+      values:
+      - worker0.example.com
+      - worker1.example.com
+      - worker2.example.com
 ---
 apiVersion: scale.spectrum.ibm.com/v1beta1
 kind: LocalDisk
@@ -19,8 +27,16 @@ metadata:
   name: disk1
   namespace: ibm-spectrum-scale
 spec:
-  device: /dev/vdc
+  device: /dev/sdc
   node: worker0.example.com
+  nodeConnectionSelector:
+    matchExpressions:
+    - key: kubernetes.io/hostname
+      operator: In
+      values:
+      - worker0.example.com
+      - worker1.example.com
+      - worker2.example.com
 ---
 apiVersion: scale.spectrum.ibm.com/v1beta1
 kind: LocalDisk
@@ -31,5 +47,13 @@ metadata:
   name: disk2
   namespace: ibm-spectrum-scale
 spec:
-  device: /dev/vdd
+  device: /dev/sdd
   node: worker0.example.com
+  nodeConnectionSelector:
+    matchExpressions:
+    - key: kubernetes.io/hostname
+      operator: In
+      values:
+      - worker0.example.com
+      - worker1.example.com
+      - worker2.example.com

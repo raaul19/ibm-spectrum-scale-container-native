@@ -1168,6 +1168,47 @@ spec:
                           are ignored for scheduling CSI sidecar pods.
                         type: object
                     type: object
+                  tolerations:
+                    description: tolerations that are applied to CSI pods.
+                    items:
+                      description: The pod this Toleration is attached to tolerates
+                        any taint that matches the triple <key,value,effect> using
+                        the matching operator <operator>.
+                      properties:
+                        effect:
+                          description: Effect indicates the taint effect to match.
+                            Empty means match all taint effects. When specified, allowed
+                            values are NoSchedule, PreferNoSchedule and NoExecute.
+                          type: string
+                        key:
+                          description: Key is the taint key that the toleration applies
+                            to. Empty means match all taint keys. If the key is empty,
+                            operator must be Exists; this combination means to match
+                            all values and all keys.
+                          type: string
+                        operator:
+                          description: Operator represents a key's relationship to
+                            the value. Valid operators are Exists and Equal. Defaults
+                            to Equal. Exists is equivalent to wildcard for value,
+                            so that a pod can tolerate all taints of a particular
+                            category.
+                          type: string
+                        tolerationSeconds:
+                          description: TolerationSeconds represents the period of
+                            time the toleration (which must be of effect NoExecute,
+                            otherwise this field is ignored) tolerates the taint.
+                            By default, it is not set, which means tolerate the taint
+                            forever (do not evict). Zero and negative values will
+                            be treated as 0 (evict immediately) by the system.
+                          format: int64
+                          type: integer
+                        value:
+                          description: Value is the taint value the toleration matches
+                            to. If the operator is Exists, the value should be empty,
+                            otherwise just a regular string.
+                          type: string
+                      type: object
+                    type: array
                 type: object
               daemon:
                 description: It tells the operator how to configure the gpfs daemons.
@@ -1365,13 +1406,15 @@ spec:
                   nodeSelector:
                     additionalProperties:
                       type: string
-                    description: nodeSelector will be applied to daemon core pods.  This
+                    description: nodeSelector will be applied to daemon core pods.
+                      The selectors in this field are ANDed. This means that only
+                      nodes are selected which have all labels of this field. This
                       field is logically ANDed with any nodeSelectorExpressions also
                       configured.
                     type: object
                   nodeSelectorExpressions:
                     description: nodeSelectorExpressions that will apply to daemon
-                      core pods.  This field is logically ANDed with any nodeSelector
+                      core pods. This field is logically ANDed with any nodeSelector
                       also configured.
                     items:
                       description: A node selector requirement is a selector that
@@ -1809,8 +1852,88 @@ spec:
                     type: array
                 type: object
               gui:
+                default:
+                  enableSessionIPCheck: true
                 description: It tells the operator how to configure the GUIs.
                 properties:
+                  containerResources:
+                    description: containerResources allow to specify memory and CPU
+                      requests and limits for containers of GUI pods. In large clusters
+                      with high number of PersistentVolumes the GUI containers require
+                      more resources than default values.
+                    items:
+                      properties:
+                        name:
+                          description: name is the container name.
+                          enum:
+                          - liberty
+                          - postgres
+                          type: string
+                        resources:
+                          description: resources defines the resources for this container
+                          properties:
+                            claims:
+                              description: "Claims lists the names of resources, defined
+                                in spec.resourceClaims, that are used by this container.
+                                \n This is an alpha field and requires enabling the
+                                DynamicResourceAllocation feature gate. \n This field
+                                is immutable. It can only be set for containers."
+                              items:
+                                description: ResourceClaim references one entry in
+                                  PodSpec.ResourceClaims.
+                                properties:
+                                  name:
+                                    description: Name must match the name of one entry
+                                      in pod.spec.resourceClaims of the Pod where
+                                      this field is used. It makes that resource available
+                                      inside a container.
+                                    type: string
+                                required:
+                                - name
+                                type: object
+                              type: array
+                              x-kubernetes-list-map-keys:
+                              - name
+                              x-kubernetes-list-type: map
+                            limits:
+                              additionalProperties:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                              description: 'Limits describes the maximum amount of
+                                compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                              type: object
+                            requests:
+                              additionalProperties:
+                                anyOf:
+                                - type: integer
+                                - type: string
+                                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                x-kubernetes-int-or-string: true
+                              description: 'Requests describes the minimum amount
+                                of compute resources required. If Requests is omitted
+                                for a container, it defaults to Limits if that is
+                                explicitly specified, otherwise to an implementation-defined
+                                value. Requests cannot exceed Limits. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                              type: object
+                          type: object
+                      required:
+                      - name
+                      - resources
+                      type: object
+                    type: array
+                  enableSessionIPCheck:
+                    description: enableSessionIPCheck verifies that all requests to
+                      GUI within the same session are send from the same client IP.
+                      Enabling this flag prevents session hijacking. Without IP validation,
+                      if an attacker intercepts the session ID, the attacker can potentially
+                      use the session ID from another IP address without being detected.
+                      The client IP check can be disabled in case a load balancer
+                      causes that the requests to GUI within same session are send
+                      by different IPs.
+                    type: boolean
                   nodeSelector:
                     additionalProperties:
                       type: string
@@ -1864,7 +1987,7 @@ spec:
                 properties:
                   accept:
                     description: Read the license and specify "true" to accept or
-                      "false" to not accept. https://www.ibm.com/support/customer/csol/terms/?id=L-QKJF-XTN5SR
+                      "false" to not accept. https://www.ibm.com/support/customer/csol/terms/?id=L-GJSH-J6XPAN
                       BY DOWNLOADING, INSTALLING, COPYING, ACCESSING, CLICKING ON
                       AN "ACCEPT" BUTTON, OR OTHERWISE USING THE PROGRAM, LICENSEE
                       AGREES TO THE TERMS OF THIS AGREEMENT. IF YOU ARE ACCEPTING
@@ -1902,6 +2025,13 @@ spec:
                       type: string
                     description: nodeSelector that is applied to pmcollector pods
                     type: object
+                  storageClass:
+                    description: storageClass is used for creating PVCs for pmcollector
+                      pods, if not specified default storage class 'ibm-spectrum-scale-internal'
+                      is used. Modifying this field will delete existing PVCs and
+                      create new ones with the updated storage class. This leads to
+                      the loss of the historical performance data.
+                    type: string
                   tolerations:
                     description: tolerations that are applied to pmcollector pods
                     items:
@@ -4021,13 +4151,14 @@ spec:
               nodeSelector:
                 additionalProperties:
                   type: string
-                description: nodeSelector will be applied to daemon core pods.  This
-                  field is logically ANDed with any nodeSelectorExpressions also configured.
+                description: nodeSelector will be applied to daemon core pods. The
+                  selectors in this field are ANDed. This means that only nodes are
+                  selected which have all labels of this field. This field is logically
+                  ANDed with any nodeSelectorExpressions also configured.
                 type: object
               nodeSelectorExpressions:
                 description: nodeSelectorExpressions that will apply to daemon core
-                  pods.  This field is logically ANDed with any nodeSelector also
-                  configured.
+                  pods. This field is logically ANDed with any nodeSelector also configured.
                 items:
                   description: A node selector requirement is a selector that contains
                     values, a key, and an operator that relates the key and values.
@@ -5915,8 +6046,7 @@ spec:
                   properties:
                     diskCount:
                       description: diskCount is the number of localdisk objects in
-                        this pool. Used only if the file system is not replicated
-                        (means if spec.local.replication is "1-way").
+                        this pool. Used only if spec.local.replication is "1-way".
                       type: integer
                     disks:
                       description: disks lists the names of the localdisk objects
@@ -5924,38 +6054,32 @@ spec:
                         (means if spec.local.replication is "1-way").
                       type: string
                     failureGroups:
-                      description: failureGroups shows the status of disks in a failure
-                        group. Used only if the file system is replicated (means if
-                        spec.local.replication is not "1-way").
+                      description: failureGroups shows the status of disks separated
+                        by failure groups. Used only if the file system is replicated
+                        (means if spec.local.replication is "2-way" or "3-way").
                       items:
                         properties:
                           diskCount:
                             description: diskCount is the number of localdisk objects
-                              in this failure group of the pool. Used only if the
-                              file system is replicated (means if spec.local.replication
-                              is not "1-way").
+                              in this failure group. Used only if the file system
+                              is replicated (means if spec.local.replication is not
+                              "1-way").
                             type: integer
                           disks:
                             description: disks lists the names of the localdisk objects
-                              in this failure group of the pool. Used only if the
-                              file system is replicated (means if spec.local.replication
-                              is not "1-way").
+                              in this failure group. Used only if the file system
+                              is replicated (means if spec.local.replication is not
+                              "1-way").
                             type: string
                           failureGroup:
                             description: failureGroup is the number of this failure
                               group
                             type: string
-                          failureGroupMapping:
-                            description: failureGroupMapping shows the name of the
-                              entity that bundles the disks together in a failure
-                              group. This can be for example an kubernetes zone or
-                              region or a kubernetes node.
-                            type: string
                           totalDiskSize:
                             description: totalDiskSize is the sum of all disk sizes
-                              in this failure group of the pool. Used only if the
-                              file system is replicated (means if spec.local.replication
-                              is not "1-way").
+                              in this failure group. Used only if the file system
+                              is replicated (means if spec.local.replication is not
+                              "1-way").
                             type: string
                         type: object
                       type: array
@@ -5966,8 +6090,7 @@ spec:
                       type: string
                     totalDiskSize:
                       description: totalDiskSize is the sum of all disk sizes in this
-                        pool. Used only if the file system is not replicated (means
-                        if spec.local.replication is "1-way").
+                        pool. Used only if spec.local.replication is "1-way".
                       type: string
                   type: object
                 type: array
@@ -6211,7 +6334,85 @@ spec:
             type: object
           spec:
             description: spec defines the desired state of Gui
+            nullable: true
             properties:
+              containerResources:
+                description: containerResources allow to specify memory and CPU requests
+                  and limits for containers of GUI pods. In large clusters with high
+                  number of PersistentVolumes the GUI containers require more resources
+                  than default values.
+                items:
+                  properties:
+                    name:
+                      description: name is the container name.
+                      enum:
+                      - liberty
+                      - postgres
+                      type: string
+                    resources:
+                      description: resources defines the resources for this container
+                      properties:
+                        claims:
+                          description: "Claims lists the names of resources, defined
+                            in spec.resourceClaims, that are used by this container.
+                            \n This is an alpha field and requires enabling the DynamicResourceAllocation
+                            feature gate. \n This field is immutable. It can only
+                            be set for containers."
+                          items:
+                            description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                            properties:
+                              name:
+                                description: Name must match the name of one entry
+                                  in pod.spec.resourceClaims of the Pod where this
+                                  field is used. It makes that resource available
+                                  inside a container.
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          type: array
+                          x-kubernetes-list-map-keys:
+                          - name
+                          x-kubernetes-list-type: map
+                        limits:
+                          additionalProperties:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          description: 'Limits describes the maximum amount of compute
+                            resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                          type: object
+                        requests:
+                          additionalProperties:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          description: 'Requests describes the minimum amount of compute
+                            resources required. If Requests is omitted for a container,
+                            it defaults to Limits if that is explicitly specified,
+                            otherwise to an implementation-defined value. Requests
+                            cannot exceed Limits. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                          type: object
+                      type: object
+                  required:
+                  - name
+                  - resources
+                  type: object
+                type: array
+              enableSessionIPCheck:
+                description: enableSessionIPCheck verifies that all requests to GUI
+                  within the same session are send from the same client IP. Enabling
+                  this flag prevents session hijacking. Without IP validation, if
+                  an attacker intercepts the session ID, the attacker can potentially
+                  use the session ID from another IP address without being detected.
+                  The client IP check can be disabled in case a load balancer causes
+                  that the requests to GUI within same session are send by different
+                  IPs.
+                type: boolean
               nodeSelector:
                 additionalProperties:
                   type: string
@@ -6384,10 +6585,6 @@ spec:
       name: Failuregroup
       priority: 10
       type: string
-    - jsonPath: .status.failuregroupMapping
-      name: Failuregroup Mapping
-      priority: 10
-      type: string
     - jsonPath: .status.size
       name: Size
       type: string
@@ -6429,11 +6626,76 @@ spec:
                   If true, the disk will be formatted, no matter if it still has data
                   on it.
                 type: boolean
+              failureGroup:
+                description: failureGroup is the failure group number for this disk.
+                  This parameter is only used if the filesystem that uses this disk
+                  is replicated (means the Filesystem parameter spec.replication is
+                  "2-way" or "3-way"). The replicas of blocks are written to disks
+                  with different failure group numbers. Specify a positive number
+                  greater or equal than zero and use quotation marks, for example
+                  "2". If this parameter is not specified, the failure group numbers
+                  are automatically assigned. Refer to the documentation for more
+                  information on automatic failure group assignment. This parameter
+                  cannot be changed anymore as soon as the local disk is used by a
+                  filesystem.
+                maxLength: 6
+                pattern: ^([0-9]*)?$
+                type: string
               node:
                 description: node specifies the kubernetes node name of node where
                   the local disk device path (see "device" parameter) is gathered
                   from at creation time.
                 type: string
+              nodeConnectionSelector:
+                description: nodeConnectionSelector selects the nodes which are expected
+                  to have a physical connection to the disk. If not specified, all
+                  nodes with the "storage" role are expected to have a physical connection
+                  to the disk. The operator verifies if the disks are visible on the
+                  selected nodes. This parameter must not be specified if the disk
+                  is only connected to the node specified in spec.node, which means
+                  the disk type is "unshared".
+                properties:
+                  matchExpressions:
+                    description: matchExpressions is a list of label selector requirements.
+                      The requirements are ANDed.
+                    items:
+                      description: A label selector requirement is a selector that
+                        contains values, a key, and an operator that relates the key
+                        and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: operator represents a key's relationship to
+                            a set of values. Valid operators are In, NotIn, Exists
+                            and DoesNotExist.
+                          type: string
+                        values:
+                          description: values is an array of string values. If the
+                            operator is In or NotIn, the values array must be non-empty.
+                            If the operator is Exists or DoesNotExist, the values
+                            array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: matchLabels is a map of {key,value} pairs. A single
+                      {key,value} in the matchLabels map is equivalent to an element
+                      of matchExpressions, whose key field is "key", the operator
+                      is "In", and the values array contains only "value". The requirements
+                      are ANDed.
+                    type: object
+                type: object
               thinDiskType:
                 default: "no"
                 description: 'thinDiskType specfies the space reclaim disk type of
@@ -6526,8 +6788,10 @@ spec:
                 type: string
               failuregroupMapping:
                 description: failuregroupMapping describes to which Kubernetes object
-                  the failuregroup is mapped to. This can be a Kubernetes node, a
-                  Kubernetes zone or a Kubernetes region.
+                  the failuregroup is mapped to during automatic failuregroup assignment.
+                  This can be a Kubernetes node, a Kubernetes zone or a Kubernetes
+                  region. This is empty if the failure group number is configured
+                  in spec.failureGroup.
                 type: string
               filesystem:
                 description: filesystem is the name of the filesystem that uses this
@@ -6548,7 +6812,6 @@ spec:
                 type: string
             required:
             - failuregroup
-            - failuregroupMapping
             - filesystem
             - pool
             - size
@@ -6602,12 +6865,20 @@ spec:
             type: object
           spec:
             description: spec defines the desired state of Pmcollector
+            nullable: true
             properties:
               nodeSelector:
                 additionalProperties:
                   type: string
                 description: nodeSelector that is applied to pmcollector pods
                 type: object
+              storageClass:
+                description: storageClass is used for creating PVCs for pmcollector
+                  pods, if not specified default storage class 'ibm-spectrum-scale-internal'
+                  is used. Modifying this field will delete existing PVCs and create
+                  new ones with the updated storage class. This leads to the loss
+                  of the historical performance data.
+                type: string
               tolerations:
                 description: tolerations that are applied to pmcollector pods
                 items:
@@ -8831,9 +9102,11 @@ rules:
   - persistentvolumeclaims
   verbs:
   - create
+  - delete
   - get
   - list
   - patch
+  - update
   - watch
 - apiGroups:
   - ""
@@ -8968,6 +9241,9 @@ rules:
   - statefulsets
   verbs:
   - create
+  - delete
+  - get
+  - list
   - patch
 - apiGroups:
   - config.openshift.io
@@ -9996,21 +10272,21 @@ data:
     apiVersion: scale.spectrum.ibm.com/v1alpha1
     kind: ClusterManagerConfig
     images:
-      coreECE: cp.icr.io/cp/spectrum/scale/erasure-code/ibm-spectrum-scale-daemon@sha256:dd7d1b3b4e691008c007981df55896d4f2a79f3e189e83de463f81e855efd4e3
-      coreDME: cp.icr.io/cp/spectrum/scale/data-management/ibm-spectrum-scale-daemon@sha256:3ed9321e4f3da7bbf75f99e8b4fd7b57139f793509b47a33cfeb51c66f20518f
-      coreDAE: cp.icr.io/cp/spectrum/scale/data-access/ibm-spectrum-scale-daemon@sha256:54871bd8d09fd62d62dee7ffcae655297a0d73641849e962a4f5adac618e5b5e
-      coreInit: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-core-init@sha256:ac0a1702d79c12b49e6cbcdabbc293d1cfe7c4dce60087f92d12e1c4d827f1cc
-      gui: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-gui@sha256:3692748b236758ada23f80a67fba5fbbf165acc995ce2da523de51a59a300675
+      coreECE: cp.icr.io/cp/spectrum/scale/erasure-code/ibm-spectrum-scale-daemon@sha256:2fdc55402b241c09c17f9b3a4ecc4008d258e4eb19ebdeb1177d975b493ee6df
+      coreDME: cp.icr.io/cp/spectrum/scale/data-management/ibm-spectrum-scale-daemon@sha256:1f7a9a48f15162749e2a399b83f704beb73bb9fffd93275b0b0651ddca6dd83b
+      coreDAE: cp.icr.io/cp/spectrum/scale/data-access/ibm-spectrum-scale-daemon@sha256:82ff198432997b628213f8c828b4843019f4a163e608eee8773e9e85686144bd
+      coreInit: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-core-init@sha256:ee984f59941faa674af7450f39d52df3409d3dedb5b930fa0e33b310c9dd6de1
+      gui: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-gui@sha256:a5b65cb784e84acc80f7318ca30a03d270b7931e500fb0bcece87c6adcf4cd56
       postgres: cp.icr.io/cp/spectrum/scale/postgres@sha256:bbd7346fab25b7e0b25f214829d6ebfb78ef0465059492e46dee740ce8fcd844
-      logs: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-logs@sha256:22c973b4ac5f6ff00a2cadc474c695513ad8246614ab0d145ae5612a6fd769f4
-      pmcollector: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-pmcollector@sha256:de8f2f45b5cf33a018e8ffdda25d53f752d0365278587565306eb194696368e5
-      sysmon: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-monitor@sha256:7ebe93f44ad6d08a6db9919b775819d2fd2780f3f426ed745736b9247da03ce9
-      grafanaBridge: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-grafana-bridge@sha256:65a14666cc3dc2ad7516b715f175ddfc18a6f2b5b6c1a3966560b03d6fd02f99
+      logs: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-logs@sha256:88e1ab0b4b93e5730bdc5657d0fdbc593d814392321005378d7a87b013cdc86a
+      pmcollector: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-pmcollector@sha256:1dd8b31e3a44f10597206945ee4ee580ea5e325f7e9e69972daef24c10f399ae
+      sysmon: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-monitor@sha256:cc6d431ea461b58faceb759e8d23cd66554a1dd4c057d6ca9c56aaaecd8d8757
+      grafanaBridge: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-grafana-bridge@sha256:a8f5e13168e4c9d15a3026cdec5dde98a75ddf2a17c6bea4fc67b32e825e2632
       coreDNS: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-coredns@sha256:88cbfe40fd302a6467cb7e852b298f6c8d8659782ab313706d491d3ddf172a6e
-      mustGather: icr.io/cpopen/ibm-spectrum-scale-must-gather@sha256:fd1c27c6cf5d34782c5fe718486fab38ba9c8227b4d81961b5e39b692fbd6aa7
-      ganesha: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-ganesha@sha256:99c4c981a6ca7366af247c16890a23903a659195aefa9bbe9302247602260ce7
-      stunnel: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-stunnel@sha256:bd1f4607c8b02063dde8aff7caa9eee732ffdf2c5d535d0b5eff6c9616359cdd
-      pmsensors: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-pmsensors@sha256:7a9e836c4385ff50c0bae957e1936d2a1a350ffc465bc278371f89f22d9e76b5
+      mustGather: icr.io/cpopen/ibm-spectrum-scale-must-gather@sha256:8d6561114d9d4161eaab4529b7664ab32b032654763662dd79054540766da0f7
+      ganesha: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-ganesha@sha256:04e5e5188febe046c9d6f3cdf6f06e1c92d62088caa50fb65948b73be3dc4dda
+      stunnel: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-stunnel@sha256:b900b3912f7ba3e26e6d99c8f5dab66c2de23ed9fe2cf0ab79bae21515676ed0
+      pmsensors: cp.icr.io/cp/spectrum/scale/ibm-spectrum-scale-pmsensors@sha256:dc57f960aa63b3bc24c94a065b0747548d0895cd081ec86dcb2714b69ee8a265
 kind: ConfigMap
 metadata:
   labels:
@@ -10042,7 +10318,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    productVersion: 2.12.1
+    productVersion: 2.13.0
   labels:
     app.kubernetes.io/instance: ibm-spectrum-scale-csi-operator
     app.kubernetes.io/managed-by: ibm-spectrum-scale-csi-operator
@@ -10061,7 +10337,7 @@ spec:
       annotations:
         productID: ibm-spectrum-scale-csi-operator
         productName: IBM Spectrum Scale CSI Operator
-        productVersion: 2.12.1
+        productVersion: 2.13.0
       labels:
         app.kubernetes.io/instance: ibm-spectrum-scale-csi-operator
         app.kubernetes.io/managed-by: ibm-spectrum-scale-csi-operator
@@ -10088,26 +10364,26 @@ spec:
         - name: SHORTNAME_NODE_MAPPING
           value: "yes"
         - name: CSI_SNAPSHOTTER_IMAGE
-          value: cp.icr.io/cp/spectrum/scale/csi/csi-snapshotter@sha256:2e04046334baf9be425bb0fa1d04c2d1720d770825eedbdbcdb10d430da4ad8c
+          value: cp.icr.io/cp/spectrum/scale/csi/csi-snapshotter@sha256:b3e90b33781670ac050c22c9e88b9e876493dca248966b9da6f7a90cc412ab86
         - name: CSI_ATTACHER_IMAGE
           value: cp.icr.io/cp/spectrum/scale/csi/csi-attacher@sha256:b4d611100ece2f9bc980d1cb19c2285b8868da261e3b1ee8f45448ab5512ab94
         - name: CSI_PROVISIONER_IMAGE
-          value: cp.icr.io/cp/spectrum/scale/csi/csi-provisioner@sha256:bf5a235b67d8aea00f5b8ec24d384a2480e1017d5458d8a63b361e9eeb1608a9
+          value: cp.icr.io/cp/spectrum/scale/csi/csi-provisioner@sha256:7b9cdb5830d01bda96111b4f138dbddcc01eed2f95aa980a404c45a042d60a10
         - name: CSI_LIVENESSPROBE_IMAGE
-          value: cp.icr.io/cp/spectrum/scale/csi/livenessprobe@sha256:5baeb4a6d7d517434292758928bb33efc6397368cbb48c8a4cf29496abf4e987
+          value: cp.icr.io/cp/spectrum/scale/csi/livenessprobe@sha256:33692aed26aaf105b4d6e66280cceca9e0463f500c81b5d8c955428a75438f32
         - name: CSI_NODE_REGISTRAR_IMAGE
-          value: cp.icr.io/cp/spectrum/scale/csi/csi-node-driver-registrar@sha256:f25af73ee708ff9c82595ae99493cdef9295bd96953366cddf36305f82555dac
+          value: cp.icr.io/cp/spectrum/scale/csi/csi-node-driver-registrar@sha256:e01facb9fb9cffaf52d0053bdb979fbd8c505c8e411939a6e026dd061a6b4fbe
         - name: CSI_RESIZER_IMAGE
-          value: cp.icr.io/cp/spectrum/scale/csi/csi-resizer@sha256:a541e6cc2d8b011bb21b1d4ffec6b090e85270cce6276ee302d86153eec0af43
+          value: cp.icr.io/cp/spectrum/scale/csi/csi-resizer@sha256:be6a7de1d43dba90710b61bd3d0d8f568654a6adadaeea9188cf4cd3554cbb87
         - name: CSI_DRIVER_IMAGE
-          value: cp.icr.io/cp/spectrum/scale/csi/ibm-spectrum-scale-csi-driver@sha256:db04d298c4171fa3c95a87ff7d474949807205b600530eead06043c49c650e83
+          value: cp.icr.io/cp/spectrum/scale/csi/ibm-spectrum-scale-csi-driver@sha256:6cf6a3818f48c2bcb5460c4902c5d44ad73c415a5f2980a374062a4bb18840ea
         - name: METRICS_BIND_ADDRESS
           value: "8383"
         - name: WATCH_NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        image: icr.io/cpopen/ibm-spectrum-scale-csi-operator@sha256:99ba046ccc9f90777366ebc0dbee55309460d312f68da0f371c176513b5e9592
+        image: icr.io/cpopen/ibm-spectrum-scale-csi-operator@sha256:c292fa07a03f5accac554a5f366b7241c31dbb85fc4617c0fe2428cf103fce56
         imagePullPolicy: IfNotPresent
         livenessProbe:
           exec:
@@ -10160,7 +10436,7 @@ metadata:
   labels:
     app.kubernetes.io/instance: ibm-spectrum-scale
     app.kubernetes.io/name: operator
-    app.kubernetes.io/version: v5.2.1.1
+    app.kubernetes.io/version: v5.2.2.0
     control-plane: controller-manager
   name: ibm-spectrum-scale-controller-manager
   namespace: ibm-spectrum-scale-operator
@@ -10176,7 +10452,7 @@ spec:
       labels:
         app.kubernetes.io/instance: ibm-spectrum-scale
         app.kubernetes.io/name: operator
-        app.kubernetes.io/version: v5.2.1.1
+        app.kubernetes.io/version: v5.2.2.0
         control-plane: controller-manager
     spec:
       affinity:
@@ -10218,7 +10494,7 @@ spec:
           valueFrom:
             resourceFieldRef:
               resource: limits.memory
-        image: icr.io/cpopen/ibm-spectrum-scale-operator@sha256:e3fa797d4cc30a35050c78203fc38ed73637c1b0a61cbd4c18c29c69ba5fa649
+        image: icr.io/cpopen/ibm-spectrum-scale-operator@sha256:1580665f94e133f591e27cb5a3237652b7d0c5a31848457d2a2fad4b356aa530
         livenessProbe:
           httpGet:
             path: /healthz

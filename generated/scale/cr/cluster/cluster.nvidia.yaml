@@ -23,6 +23,14 @@ spec:
       maxblocksize: 16M
       prefetchPct: "25"
       prefetchTimeout: "30"
+      # -------------------------------------------------------------------------------
+      # RDMA specific configuration.
+      # Change verbsPort to value based on your configuration. This value should match the
+      # network interface name for the InfiniBand device. For example: "mlx5_2", "ibs5f0", etc.
+      # -------------------------------------------------------------------------------
+      # verbsPorts: mlx5_2
+      # verbsRdma: enable
+      # verbsRdmaSend: "yes"
     # -------------------------------------------------------------------------------
     # nodeSelector is a User Configurable field.
     # -------------------------------------------------------------------------------
@@ -42,11 +50,8 @@ spec:
     roles:
     - name: client
       resources:
-        cpu: "2"
-        memory: 4Gi
-    - name: storage
-      resources:
-        cpu: "2"
+        cpu: "4"
+        memory: 32Gi
         memory: 8Gi
   # -------------------------------------------------------------------------------
   # grafana bridge is optional
@@ -57,7 +62,7 @@ spec:
   # User must accept the Spectrum Scale license to deploy a CNSA cluster.
   # By specifying "accept: true" below, user agrees to the terms and conditions set
   # forth by the IBM Spectrum Scale Container Native Data Access/Data Management license located
-  # at https://www.ibm.com/support/customer/csol/terms/?id=L-GJSH-J6XPAN
+  # at https://www.ibm.com/support/customer/csol/terms/?id=L-ZWQM-AL9LU6
   #
   # Enter either data-access or data-management to the license.license field. Customers entitled to
   # the Data Management Edition can use either data-management or data-access. Customers entitled to
